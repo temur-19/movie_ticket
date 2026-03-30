@@ -1,36 +1,41 @@
-from fastapi import APIRouter, HTTPException
+from typing import List
+from fastapi import APIRouter, HTTPException, Depends
+from sqlalchemy import select
 from schemas import TicketCreate, TicketOut
+from database import Base, get_db, engine
+from models import Ticket
 
+
+
+Base.metadata.create_all(bind=engine)
 api_router = APIRouter(prefix='/api/tickets')
 
-tickets = []
 
-current_ticket_id = 1
+@api_router.post('/', response_model=TicketOut)
+def create_ticket(ticket_in: TicketCreate, db = Depends(get_db)):
+    stmt = select(Ticket).where(Ticket.movie_name == ticket_in.movie_name,
+                                Ticket.seat_number == ticket_in.seat_number)
+    existing_ticket = db.scalar(stmt)
+    if existing_ticket:
+        raise HTTPException(status_code=404, detail="Bu bilet allaqachon sotilgan.")
 
-@api_router.post('/',response_model=TicketOut)
-def create_ticket(ticket_in:TicketCreate):
-    global current_ticket_id
-
-    for sold_ticket in tickets:
-        if sold_ticket['seat_number'] == ticket_in.set_number and sold_ticket['movie_name'] == ticket_in.movie_name:
-            raise HTTPException(status_code=404, detail='Bu bilet allaqachon sotilgan')
-    
     price = 80000.00 if ticket_in.is_vip else 40000.00
 
-    new_ticket = {
-        'ticket_id': current_ticket_id,
-        'customer_name':ticket_in.customer_name,
-        'seat_number':ticket_in.set_number,
-        'movie_name':ticket_in.movie_name,
-        'is_vip':ticket_in.is_vip,
-        'price':price
-    }
-    tickets.append(new_ticket)
-    current_ticket_id+=1
-    return new_ticket
+    ticket = Ticket(
+        **ticket_in.model_dump(),
+        price=price
+    )
+
+    db.add(ticket)
+    db.commit()
+    db.refresh(ticket)
+
+    return ticket
 
 
-@api_router.get('/out')
-def out_tickets():
-    return tickets 
+@api_router.get('/', response_model=List[TicketOut])
+def get_tickets(db = Depends(get_db)):
+    stmt = select(Ticket)
+    tickets = db.scalars(stmt).all()
 
+    return tickets
