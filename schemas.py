@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field,EmailStr
 
 
 class TicketCreate(BaseModel):
@@ -15,3 +15,21 @@ class TicketOut(BaseModel):
     customer_name: str = Field(max_length=100)
     is_vip: bool = False
     price: float = Field(default=0)
+
+
+class UserBase(BaseModel):
+    id:int = Field(ge=1)
+    name:str = Field(max_length=100)
+    lastname:str = Field(max_length=100)
+    email: EmailStr
+
+class UserCreate(UserBase):
+    password:str = Field(min_length=6)
+
+class UserOut(UserBase):
+    pass
+
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
