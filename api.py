@@ -1,6 +1,7 @@
+import time
 from typing import List
-from fastapi import APIRouter, HTTPException, Depends
-from sqlalchemy import select
+from fastapi import APIRouter, HTTPException, Depends, Request
+from sqlalchemy import select, func
 from schemas import TicketCreate, TicketOut, UserCreate, UserOut, Token
 from database import Base, get_db, engine
 from models import Ticket   
@@ -9,6 +10,8 @@ from jose import jwt
 import security
 from models import User
 from sqlalchemy.orm import Session
+from fastapi import FastAPI
+
 
 
 Base.metadata.create_all(bind=engine)
@@ -74,6 +77,9 @@ def login(form: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get
 def get_current_user_profile(current_user: UserOut = Depends(get_current_user)):
     return current_user
 
+
+
+
 @api_router.post('/', response_model=TicketOut)
 def create_ticket(ticket_in: TicketCreate, db = Depends(get_db)):
     stmt = select(Ticket).where(Ticket.movie_name == ticket_in.movie_name,
@@ -96,12 +102,15 @@ def create_ticket(ticket_in: TicketCreate, db = Depends(get_db)):
     return ticket
 
 
-
-
-
-
 @api_router.get('/', response_model=List[TicketOut])
-def get_tickets(db = Depends(get_db)):
-    stmt = select(Ticket)
+def get_tickets(limit: int = 10, offset: int = 0, db = Depends(get_db)):
+    stmt = select(Ticket).limit(limit).offset(offset)
     tickets = db.scalars(stmt).all()
-    return tickets
+    tickets_count = db.scalar(select(func.count()).select_from(Ticket))
+    data = {
+        "total": tickets_count,
+        "items": tickets,
+        "limit": limit,
+        "offset": offset
+    }
+    return data
